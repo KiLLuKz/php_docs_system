@@ -33,7 +33,7 @@ class Auth {
         }
 
         $token = $matches[1];
-        $secretKey = $_ENV['JWT_SECRET'] ?? 'default_secret';
+        $secretKey = $_SERVER['JWT_SECRET'] ?? $_ENV['JWT_SECRET'] ?? 'default_secret';
 
         try {
             $decoded = JWT::decode($token, new Key($secretKey, 'HS256'));

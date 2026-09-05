@@ -39,7 +39,7 @@ class AuthController {
             }
         }
 
-        $secretKey = $_ENV['JWT_SECRET'] ?? 'default_secret';
+        $secretKey = $_SERVER['JWT_SECRET'] ?? $_ENV['JWT_SECRET'] ?? 'default_secret';
         $issuedAt = time();
         $expirationTime = $issuedAt + (60 * 60 * 24); // valid for 24 hours
         $payload = [

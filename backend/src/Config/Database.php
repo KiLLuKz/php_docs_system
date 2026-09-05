@@ -9,10 +9,10 @@ class Database {
 
     public static function getConnection() {
         if (self::$instance === null) {
-            $host = $_ENV['DB_HOST'] ?? 'mariadb';
-            $db   = $_ENV['DB_NAME'] ?? 'doc_system';
-            $user = $_ENV['DB_USER'] ?? 'doc_user';
-            $pass = $_ENV['DB_PASS'] ?? 'doc_password';
+            $host = $_SERVER['DB_HOST'] ?? $_ENV['DB_HOST'] ?? 'mariadb';
+            $db   = $_SERVER['DB_NAME'] ?? $_ENV['DB_NAME'] ?? 'doc_system';
+            $user = $_SERVER['DB_USER'] ?? $_ENV['DB_USER'] ?? 'doc_user';
+            $pass = $_SERVER['DB_PASS'] ?? $_ENV['DB_PASS'] ?? 'doc_password';
             $charset = 'utf8mb4';
 
             $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
