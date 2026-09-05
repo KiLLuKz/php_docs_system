@@ -1,0 +1,26 @@
+# Node.js / Vite (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/.eslintcache
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/yarn-debug.log*
+
+# PHP (Backend)
+backend/vendor/
+backend/.env
+backend/uploads/
+backend/error_log
+
+# OS / Editor Files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary Files
+.gemini/
+brain/
