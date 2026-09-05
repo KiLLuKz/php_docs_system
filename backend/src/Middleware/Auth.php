@@ -24,6 +24,14 @@ class Auth {
             $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
         }
 
+        // Fallback for shared hosting stripping Authorization header
+        if (!$authHeader && isset($headers['X-Auth-Token'])) {
+            $authHeader = 'Bearer ' . $headers['X-Auth-Token'];
+        }
+        if (!$authHeader && isset($_GET['token'])) {
+            $authHeader = 'Bearer ' . $_GET['token'];
+        }
+
         if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
             header('HTTP/1.1 401 Unauthorized');
             // Log for debugging
