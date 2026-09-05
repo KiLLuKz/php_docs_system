@@ -7,27 +7,35 @@ use Exception;
 
 class Auth {
     public static function check() {
-        $headers = function_exists('apache_request_headers') ? apache_request_headers() : getallheaders();
-        $authHeader = $headers['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        $authHeader = '';
+        
+        // 1. Check $_SERVER for standard auth
+        if (isset($_SERVER['HTTP_AUTHORIZATION'])) $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+        elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+        
+        // 2. Check $_SERVER for our custom X-Auth-Token
+        elseif (isset($_SERVER['HTTP_X_AUTH_TOKEN'])) $authHeader = 'Bearer ' . $_SERVER['HTTP_X_AUTH_TOKEN'];
+        elseif (isset($_SERVER['REDIRECT_HTTP_X_AUTH_TOKEN'])) $authHeader = 'Bearer ' . $_SERVER['REDIRECT_HTTP_X_AUTH_TOKEN'];
 
+        // 3. Fallback to apache_request_headers / getallheaders loop
         if (!$authHeader) {
-            // Case-insensitive fallback
-            foreach ($headers as $key => $value) {
-                if (strtolower($key) === 'authorization' || strtolower($key) === 'http_authorization') {
-                    $authHeader = $value;
-                    break;
+            $headers = function_exists('apache_request_headers') ? apache_request_headers() : getallheaders();
+            if ($headers) {
+                foreach ($headers as $key => $value) {
+                    $lowerKey = strtolower($key);
+                    if ($lowerKey === 'authorization' || $lowerKey === 'http_authorization') {
+                        $authHeader = $value;
+                        break;
+                    }
+                    if ($lowerKey === 'x-auth-token') {
+                        $authHeader = 'Bearer ' . $value;
+                        break;
+                    }
                 }
             }
         }
-        
-        if (!$authHeader && isset($_SERVER['HTTP_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-        }
 
-        // Fallback for shared hosting stripping Authorization header
-        if (!$authHeader && isset($headers['X-Auth-Token'])) {
-            $authHeader = 'Bearer ' . $headers['X-Auth-Token'];
-        }
+        // 4. Ultimate fallback: URL parameter (e.g. ?token=...)
         if (!$authHeader && isset($_GET['token'])) {
             $authHeader = 'Bearer ' . $_GET['token'];
         }
