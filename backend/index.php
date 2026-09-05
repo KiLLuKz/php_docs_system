@@ -10,6 +10,8 @@ $dotenv->safeLoad();
 
 // Setup Router
 $router = new Router();
+$basePath = str_replace('/index.php', '', $_SERVER['SCRIPT_NAME']);
+$router->setBasePath($basePath);
 
 // CORS Middleware
 $router->options('/.*', function() {
