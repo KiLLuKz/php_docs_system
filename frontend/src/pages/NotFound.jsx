@@ -1,11 +1,13 @@
 import React from 'react';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import { useNavigate, Link } from 'react-router-dom';
 import { FileQuestion, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
-export default function NotFound() {
+export default function NotFound() { 
+  useDocumentTitle('NotFound');
   const navigate = useNavigate();
 
   return (

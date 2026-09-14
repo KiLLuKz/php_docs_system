@@ -7,21 +7,22 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await axiosClient.get('/auth/me');
-          if (res.data.status === 'success') {
-            setUser(res.data.user);
-          }
-        } catch (err) {
-          localStorage.removeItem('token');
+  const fetchUser = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await axiosClient.get('/auth/me');
+        if (res.data.status === 'success') {
+          setUser(res.data.user);
         }
+      } catch (err) {
+        localStorage.removeItem('token');
       }
-      setLoading(false);
-    };
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchUser();
   }, []);
 
@@ -41,7 +42,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, fetchUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -28,7 +28,7 @@ class AuthController {
                 return;
             }
         } else {
-            $stmt = $pdo->prepare("SELECT id, username, password, role, full_name FROM users WHERE username = ?");
+            $stmt = $pdo->prepare("SELECT id, username, email, password, role, full_name, profile_image FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -49,7 +49,9 @@ class AuthController {
                 'id' => $user['id'],
                 'username' => $user['username'],
                 'role' => $user['role'],
-                'full_name' => $user['full_name']
+                'full_name' => $user['full_name'],
+                'email' => $user['email'],
+                'profile_image' => $user['profile_image']
             ]
         ];
 
@@ -103,9 +105,128 @@ class AuthController {
 
     public function me() {
         // Auth middleware guarantees $GLOBALS['user'] is set
+        $jwtUser = $GLOBALS['user'];
+        
+        $pdo = Database::getConnection();
+        if ($pdo) {
+            $stmt = $pdo->prepare("SELECT id, username, email, role, full_name, profile_image FROM users WHERE id = ?");
+            $stmt->execute([$jwtUser->id]);
+            $freshUser = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($freshUser) {
+                echo json_encode([
+                    'status' => 'success',
+                    'user' => $freshUser
+                ]);
+                return;
+            }
+        }
+        
+        // Fallback to JWT payload if DB fails or user not found
         echo json_encode([
             'status' => 'success',
-            'user' => $GLOBALS['user']
+            'user' => $jwtUser
         ]);
+    }
+
+    public function updateProfile() {
+        $user = $GLOBALS['user'] ?? null;
+        if (!$user) {
+            header('HTTP/1.1 401 Unauthorized');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $pdo = Database::getConnection();
+        if (!$pdo) {
+            header('HTTP/1.1 500 Internal Server Error');
+            echo json_encode(['status' => 'error', 'message' => 'Database connection failed']);
+            return;
+        }
+
+        $full_name = $_POST['full_name'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+
+        if (!$full_name || !$email || !$username) {
+            header('HTTP/1.1 400 Bad Request');
+            echo json_encode(['status' => 'error', 'message' => 'ข้อมูลที่จำเป็นไม่ครบถ้วน (ชื่อ, อีเมล, ชื่อผู้ใช้)']);
+            return;
+        }
+
+        // Check if username or email already taken by someone else
+        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?");
+        $checkStmt->execute([$username, $email, $user->id]);
+        if ($checkStmt->fetch()) {
+            header('HTTP/1.1 400 Bad Request');
+            echo json_encode(['status' => 'error', 'message' => 'ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้งานแล้ว']);
+            return;
+        }
+
+        // Handle profile image upload
+        $profile_image = null;
+        if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['profile_image'];
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            
+            if (in_array(strtolower($ext), $allowedExts)) {
+                $filename = 'profile_' . $user->id . '_' . time() . '.' . $ext;
+                $upload_dir = __DIR__ . '/../../uploads/profiles/';
+                
+                if (!is_dir($upload_dir)) {
+                    @mkdir($upload_dir, 0777, true);
+                }
+
+                $filepath = $upload_dir . $filename;
+                if (@move_uploaded_file($file['tmp_name'], $filepath)) {
+                    $profile_image = $filename;
+                    
+                    // delete old image
+                    $stmt = $pdo->prepare("SELECT profile_image FROM users WHERE id = ?");
+                    $stmt->execute([$user->id]);
+                    $oldImage = $stmt->fetchColumn();
+                    if ($oldImage && file_exists($upload_dir . $oldImage)) {
+                        unlink($upload_dir . $oldImage);
+                    }
+                } else {
+                    header('HTTP/1.1 500 Internal Server Error');
+                    $errorMsg = 'ไม่สามารถบันทึกไฟล์รูปภาพได้ (Permission/Path Error): ' . $filepath;
+                    echo json_encode(['status' => 'error', 'message' => $errorMsg]);
+                    return;
+                }
+            } else {
+                header('HTTP/1.1 400 Bad Request');
+                echo json_encode(['status' => 'error', 'message' => 'ไฟล์รูปภาพไม่รองรับ (เฉพาะ JPG, PNG, GIF, WEBP เท่านั้น)']);
+                return;
+            }
+        } elseif (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+             header('HTTP/1.1 400 Bad Request');
+             echo json_encode(['status' => 'error', 'message' => 'อัปโหลดไฟล์ไม่สำเร็จ (Error Code: ' . $_FILES['profile_image']['error'] . ')']);
+             return;
+        }
+
+        // Update database
+        if ($password) {
+            $hash = password_hash($password, PASSWORD_BCRYPT);
+            if ($profile_image) {
+                $stmt = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, username = ?, password = ?, profile_image = ? WHERE id = ?");
+                $stmt->execute([$full_name, $email, $username, $hash, $profile_image, $user->id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, username = ?, password = ? WHERE id = ?");
+                $stmt->execute([$full_name, $email, $username, $hash, $user->id]);
+            }
+        } else {
+            if ($profile_image) {
+                $stmt = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, username = ?, profile_image = ? WHERE id = ?");
+                $stmt->execute([$full_name, $email, $username, $profile_image, $user->id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET full_name = ?, email = ?, username = ? WHERE id = ?");
+                $stmt->execute([$full_name, $email, $username, $user->id]);
+            }
+        }
+
+        echo json_encode(['status' => 'success', 'message' => 'อัปเดตโปรไฟล์สำเร็จ']);
     }
 }

@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 import { motion } from 'framer-motion';
 
-export default function PrivacyPolicy() {
+export default function PrivacyPolicy() { 
+  useDocumentTitle('นโยบายความเป็นส่วนตัว');
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -32,7 +34,7 @@ export default function PrivacyPolicy() {
             
             <section>
               <p className="mb-4 text-[21px] leading-[1.47] text-[#ffffff]">
-                ที่ DocPortal เราให้ความสำคัญกับความเป็นส่วนตัวของคุณเป็นอันดับแรก นโยบายนี้อธิบายถึงวิธีการที่เรารวบรวม ใช้งาน และปกป้องข้อมูลส่วนบุคคลของคุณ
+                ที่ Docsys เราให้ความสำคัญกับความเป็นส่วนตัวของคุณเป็นอันดับแรก นโยบายนี้อธิบายถึงวิธีการที่เรารวบรวม ใช้งาน และปกป้องข้อมูลส่วนบุคคลของคุณ
               </p>
             </section>
 

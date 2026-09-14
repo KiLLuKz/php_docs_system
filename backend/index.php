@@ -10,20 +10,19 @@ $dotenv->safeLoad();
 
 // Setup Router
 $router = new Router();
-$basePath = str_replace('/index.php', '', $_SERVER['SCRIPT_NAME']);
-$router->setBasePath($basePath);
+$router->setBasePath(''); // Force empty base path so REQUEST_URI remains intact
 
 // CORS Middleware
 $router->options('/.*', function() {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Auth-Token');
     exit();
 });
 
 $router->before('GET|POST|PUT|DELETE', '/.*', function() {
     header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Auth-Token');
     header('Content-Type: application/json; charset=utf-8');
 });
 
@@ -39,15 +38,38 @@ $router->mount('/api', function() use ($router) {
     $router->before('GET|POST|PUT|DELETE', '/documents', 'App\\Middleware\\Auth@check');
     $router->before('GET|POST|PUT|DELETE', '/documents/.*', 'App\\Middleware\\Auth@check');
     $router->before('GET|POST|PUT|DELETE', '/users', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/users/.*', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/categories', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/admin/categories', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/admin/categories/.*', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/admin/logs', 'App\\Middleware\\Auth@check');
+    $router->before('GET|POST|PUT|DELETE', '/admin/dashboard-stats', 'App\\Middleware\\Auth@check');
     
     $router->get('/auth/me', 'App\\Controllers\\AuthController@me');
+    $router->post('/auth/me', 'App\\Controllers\\AuthController@updateProfile');
     $router->get('/documents', 'App\\Controllers\\DocumentController@index');
     $router->post('/documents', 'App\\Controllers\\DocumentController@upload');
+    $router->post('/documents/(\d+)', 'App\\Controllers\\DocumentController@update');
     $router->delete('/documents/(\d+)', 'App\\Controllers\\DocumentController@delete');
+    $router->post('/documents/bulk-delete', 'App\\Controllers\\DocumentController@bulkDelete');
     $router->post('/documents/(\d+)/assign', 'App\\Controllers\\DocumentController@assign');
+    $router->get('/documents/(\d+)/assigned-users', 'App\\Controllers\\DocumentController@assignedUsers');
+    $router->post('/documents/(\d+)/sync-users', 'App\\Controllers\\DocumentController@syncUsers');
     $router->get('/documents/download/(\d+)', 'App\\Controllers\\DocumentController@download');
+    $router->get('/documents/preview/(\d+)', 'App\\Controllers\\DocumentController@preview');
+    $router->get('/admin/logs', 'App\\Controllers\\DocumentController@logs');
+    $router->get('/admin/dashboard-stats', 'App\\Controllers\\AdminController@getDashboardStats');
+    $router->delete('/admin/documents/bulk', 'App\\Controllers\\AdminController@bulkDeleteDocuments');
     
+    $router->get('/categories', 'App\\Controllers\\CategoryController@index');
+    $router->post('/admin/categories', 'App\\Controllers\\CategoryController@store');
+    $router->put('/admin/categories/(\d+)', 'App\\Controllers\\CategoryController@update');
+    $router->delete('/admin/categories/bulk', 'App\\Controllers\\CategoryController@bulkDelete');
+
     $router->get('/users', 'App\\Controllers\\UserController@index');
+    $router->post('/users', 'App\\Controllers\\UserController@store');
+    $router->delete('/users/(\d+)', 'App\\Controllers\\UserController@delete');
+    $router->post('/users/bulk-delete', 'App\\Controllers\\UserController@bulkDelete');
 
 });
 

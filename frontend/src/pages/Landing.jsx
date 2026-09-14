@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ShieldCheck, Zap, Lock, Share2, Search, ChevronRight } from 'lucide-react';
@@ -7,13 +8,21 @@ import Beams from '../components/Beams';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
-export default function Landing() {
+export default function Landing() { 
+  useDocumentTitle('Landing');
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { scrollY } = useScroll();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [showCookieConsent, setShowCookieConsent] = useState(true);
+  const [showCookieConsent, setShowCookieConsent] = useState(() => {
+    return localStorage.getItem('cookieConsent') !== 'true';
+  });
+
+  const handleAcceptCookies = () => {
+    localStorage.setItem('cookieConsent', 'true');
+    setShowCookieConsent(false);
+  };
 
   useEffect(() => {
     return scrollY.onChange((latest) => {
@@ -87,17 +96,24 @@ export default function Landing() {
           animate="show"
           className="text-center max-w-[800px] w-full z-10"
         >
-          <motion.h1 
-            variants={itemVariants}
-            className="text-[56px] md:text-[84px] font-bold tracking-tight leading-[1.05] text-white mb-6"
-          >
-            คลังเอกสาร<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0061ff] to-[#60efff]">ที่ฉลาดและปลอดภัย</span>
-          </motion.h1>
+          <div className="mb-6">
+            <motion.h1 
+              variants={itemVariants}
+              className="text-[42px] sm:text-[56px] md:text-[84px] font-bold tracking-tight leading-[1.05] text-white"
+            >
+              คลังเอกสาร
+            </motion.h1>
+            <motion.h1 
+              variants={itemVariants}
+              className="text-[42px] sm:text-[56px] md:text-[84px] font-bold tracking-tight leading-[1.05] text-white"
+            >
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0061ff] to-[#60efff] whitespace-nowrap">ที่ฉลาดและปลอดภัย</span>
+            </motion.h1>
+          </div>
           
           <motion.p 
             variants={itemVariants}
-            className="text-[20px] md:text-[24px] font-normal tracking-wide leading-relaxed text-[#ffffff]/80 max-w-[650px] mx-auto mb-12"
+            className="text-[18px] md:text-[24px] font-normal tracking-wide leading-relaxed text-[#ffffff]/80 max-w-[650px] mx-auto mb-12"
           >
             ยกระดับการจัดการเอกสารในองค์กรของคุณ จัดเก็บ ค้นหา และแชร์ข้อมูลได้อย่างไร้รอยต่อ พร้อมระบบรักษาความปลอดภัยระดับองค์กร
           </motion.p>
@@ -226,12 +242,12 @@ export default function Landing() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-20"
+            className="text-center mb-12 md:mb-20"
           >
-            <h2 className="text-[40px] md:text-[56px] font-bold tracking-tight leading-tight text-white mb-4">
+            <h2 className="text-[32px] md:text-[56px] font-bold tracking-tight leading-tight text-white mb-4">
               ดีไซน์ที่คิดมาเพื่อคุณ.
             </h2>
-            <p className="text-[20px] text-[#ffffff]/80 font-light max-w-[600px] mx-auto leading-relaxed">
+            <p className="text-[18px] md:text-[20px] text-[#ffffff]/80 font-light max-w-[600px] mx-auto leading-relaxed">
               สถาปัตยกรรมที่แข็งแกร่ง ประสิทธิภาพที่รวดเร็ว และประสบการณ์ที่ไร้รอยต่อ
             </p>
           </motion.div>
@@ -255,8 +271,8 @@ export default function Landing() {
                   </div>
                 </div>
                 <div className="relative z-10">
-                  <h3 className="text-[24px] font-bold tracking-tight text-white mb-3">{feature.title}</h3>
-                  <p className="text-[17px] text-[#ffffff]/70 leading-relaxed font-normal">{feature.description}</p>
+                  <h3 className="text-[20px] md:text-[24px] font-bold tracking-tight text-white mb-2 md:mb-3">{feature.title}</h3>
+                  <p className="text-[15px] md:text-[17px] text-[#ffffff]/70 leading-relaxed font-normal">{feature.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -273,15 +289,15 @@ export default function Landing() {
           animate={{ y: 0, opacity: 1 }}
           className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6"
         >
-          <div className="max-w-[980px] mx-auto bg-[#1d1d1f]/90 backdrop-blur-2xl border border-[#ffffff]/10 rounded-[18px] p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-            <p className="text-[17px] font-normal tracking-[-0.374px] leading-[1.47] text-[#ffffff]/80 text-center md:text-left">
+          <div className="max-w-[980px] mx-auto bg-[#1d1d1f]/90 backdrop-blur-2xl border border-[#ffffff]/10 rounded-[18px] p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 shadow-2xl">
+            <p className="text-[14px] md:text-[15px] font-normal tracking-wide leading-relaxed text-[#ffffff]/80 text-center md:text-left">
               เราใช้คุกกี้เพื่อเพิ่มประสบการณ์ที่ดีในการใช้งานเว็บไซต์ คุณสามารถอ่านรายละเอียดเพิ่มเติมได้ที่{' '}
               <Link to="/privacy" className="text-[#2997ff] hover:underline font-medium">นโยบายความเป็นส่วนตัว</Link> และ{' '}
               <Link to="/terms" className="text-[#2997ff] hover:underline font-medium">ข้อกำหนดการใช้งาน</Link>
             </p>
             <button 
-              onClick={() => setShowCookieConsent(false)}
-              className="bg-[#0066cc] text-[#ffffff] hover:bg-[#0071e3] px-8 py-3 rounded-full text-[17px] font-medium transition-colors whitespace-nowrap active:scale-95 duration-200"
+              onClick={handleAcceptCookies}
+              className="bg-[#2997ff] text-white hover:bg-[#0071e3] px-6 py-2.5 md:px-8 md:py-3 rounded-full text-[14px] md:text-[15px] font-medium transition-colors w-full md:w-auto whitespace-nowrap active:scale-95 duration-200"
             >
               ยอมรับคุกกี้
             </button>

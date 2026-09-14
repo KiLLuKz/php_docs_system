@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Info, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
 
 const AlertContext = createContext();
 
@@ -10,6 +12,21 @@ export const AlertProvider = ({ children }) => {
   const [alertConfig, setAlertConfig] = useState(null);
 
   const showAlert = ({ type = 'info', title, message, onConfirm = null }) => {
+    // If no onConfirm callback is needed, use Sonner toast for a modern non-blocking notification
+    if (!onConfirm) {
+      if (type === 'danger' || type === 'error') {
+        toast.error(title || 'ข้อผิดพลาด', { description: message });
+      } else if (type === 'success') {
+        toast.success(title || 'สำเร็จ', { description: message });
+      } else if (type === 'warning') {
+        toast.warning(title || 'แจ้งเตือน', { description: message });
+      } else {
+        toast.info(title || 'ข้อมูล', { description: message });
+      }
+      return;
+    }
+
+    // Otherwise, show the modal
     setAlertConfig({ type, title, message, onConfirm });
   };
 
@@ -57,31 +74,32 @@ export const AlertProvider = ({ children }) => {
               </div>
               
               {/* Buttons Row */}
-              <div className="w-full flex border-t border-[#ffffff]/10 mt-auto">
+              <div className="w-full flex gap-3 p-4 md:p-5 pt-0">
                 {alertConfig.onConfirm ? (
                   <>
-                    <button 
+                    <Button 
+                      variant="outline"
                       onClick={closeAlert}
-                      className="flex-1 py-3 text-[17px] font-normal text-[#2997ff] border-r border-[#ffffff]/10 hover:bg-[#ffffff]/5 transition-colors"
+                      className="flex-1 rounded-xl bg-transparent border-white/20 text-white hover:bg-white/10"
                     >
                       ยกเลิก
-                    </button>
-                    <button 
+                    </Button>
+                    <Button 
+                      variant={alertConfig.type === 'danger' ? 'destructive' : 'default'}
                       onClick={handleConfirm}
-                      className={`flex-1 py-3 text-[17px] font-semibold transition-colors hover:bg-[#ffffff]/5 ${
-                        alertConfig.type === 'danger' ? 'text-[#ff3b30]' : 'text-[#2997ff]'
-                      }`}
+                      className={`flex-1 rounded-xl ${alertConfig.type === 'danger' ? 'bg-red-500 hover:bg-red-600 text-white' : ''}`}
                     >
                       ตกลง
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button 
+                  <Button 
+                    variant="default"
                     onClick={closeAlert}
-                    className="w-full py-3 text-[17px] font-semibold text-[#2997ff] hover:bg-[#ffffff]/5 transition-colors"
+                    className="w-full rounded-xl bg-[#2997ff] hover:bg-[#0071e3] text-white"
                   >
                     ตกลง
-                  </button>
+                  </Button>
                 )}
               </div>
             </motion.div>

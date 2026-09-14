@@ -22,4 +22,10 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
+# Create entrypoint script to ensure uploads directory exists and is writable
+RUN echo '#!/bin/bash\nmkdir -p /var/www/html/uploads\nchmod 777 /var/www/html/uploads\nexec docker-php-entrypoint apache2-foreground' > /usr/local/bin/start.sh && \
+    chmod +x /usr/local/bin/start.sh
+
 EXPOSE 80
+
+CMD ["/usr/local/bin/start.sh"]

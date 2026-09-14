@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 import { motion } from 'framer-motion';
 
-export default function TermsOfService() {
+export default function TermsOfService() { 
+  useDocumentTitle('ข้อกำหนดการใช้งาน');
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -33,7 +35,7 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-[28px] font-semibold tracking-[0.196px] text-white mb-4 leading-[1.14]">1. การยอมรับข้อตกลง</h2>
               <p className="mb-4">
-                การที่คุณเข้าถึงและใช้งานเว็บไซต์ DocPortal ถือว่าคุณได้อ่าน ทำความเข้าใจ และตกลงที่จะผูกพันตามข้อกำหนดการใช้งานนี้ หากคุณไม่เห็นด้วยกับข้อกำหนดใดๆ โปรดงดการใช้งานระบบของเรา
+                การที่คุณเข้าถึงและใช้งานเว็บไซต์ Docsys ถือว่าคุณได้อ่าน ทำความเข้าใจ และตกลงที่จะผูกพันตามข้อกำหนดการใช้งานนี้ หากคุณไม่เห็นด้วยกับข้อกำหนดใดๆ โปรดงดการใช้งานระบบของเรา
               </p>
             </section>
 
@@ -62,7 +64,7 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-[28px] font-semibold tracking-[0.196px] text-white mb-4 leading-[1.14]">4. ขอบเขตการให้บริการ</h2>
               <p className="mb-4">
-                DocPortal ให้บริการระบบคลังเอกสารในรูปแบบ "ตามที่เป็น" (As-Is) ทางเราพยายามอย่างเต็มที่ในการรักษาเสถียรภาพและความปลอดภัยของระบบ แต่ไม่สามารถรับประกันได้ว่าระบบจะทำงานได้อย่างสมบูรณ์แบบโดยปราศจากข้อบกพร่องหรือการหยุดชะงัก
+                Docsys ให้บริการระบบคลังเอกสารในรูปแบบ "ตามที่เป็น" (As-Is) ทางเราพยายามอย่างเต็มที่ในการรักษาเสถียรภาพและความปลอดภัยของระบบ แต่ไม่สามารถรับประกันได้ว่าระบบจะทำงานได้อย่างสมบูรณ์แบบโดยปราศจากข้อบกพร่องหรือการหยุดชะงัก
               </p>
             </section>
 

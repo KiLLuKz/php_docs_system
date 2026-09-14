@@ -10,11 +10,17 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import ManageDocuments from './pages/ManageDocuments';
 import AdminUsers from './pages/AdminUsers';
+import AdminDocuments from './pages/AdminDocuments';
+import AdminCategories from './pages/AdminCategories';
+import AdminDashboard from './pages/AdminDashboard';
+import DownloadLogs from './pages/DownloadLogs';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Forbidden from './pages/Forbidden';
 import NotFound from './pages/NotFound';
+import DocumentViewer from './pages/DocumentViewer';
 import SidebarLayout from './components/SidebarLayout';
+import { Toaster } from './components/ui/sonner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +86,14 @@ export default function App() {
                 } 
               />
               <Route 
+                path="/admin/dashboard" 
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/admin/users" 
                 element={
                   <ProtectedRoute requiredRole="admin">
@@ -87,10 +101,43 @@ export default function App() {
                   </ProtectedRoute>
                 } 
               />
+              <Route 
+                path="/admin/documents" 
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDocuments />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/categories" 
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCategories />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/logs" 
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <DownloadLogs />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/document/:id" 
+                element={
+                  <ProtectedRoute>
+                    <DocumentViewer />
+                  </ProtectedRoute>
+                } 
+              />
               {/* Catch all route for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Router>
+          <Toaster position="bottom-right" theme="dark" />
         </AlertProvider>
       </AuthProvider>
     </QueryClientProvider>

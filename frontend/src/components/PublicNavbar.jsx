@@ -29,7 +29,7 @@ export default function PublicNavbar() {
         <div className="w-full mx-auto px-6 lg:px-12 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
             <ShieldCheck size={24} className="text-[#2997ff]" />
-            <span className="text-[17px] font-semibold tracking-[-0.374px]">DocPortal</span>
+            <span className="text-[17px] font-semibold tracking-[-0.374px]">Docsys</span>
           </Link>
           
           {/* Desktop Nav */}

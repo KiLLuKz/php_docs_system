@@ -1,10 +1,7 @@
 import axios from 'axios';
 
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api_doc/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 axiosClient.interceptors.request.use((config) => {
@@ -12,6 +9,9 @@ axiosClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Auth-Token'] = token;
+    
+    // Ultimate fallback for strict shared hosting (sends token in URL)
+    config.params = { ...config.params, token };
   }
   return config;
 });

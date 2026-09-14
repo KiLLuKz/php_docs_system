@@ -55,9 +55,9 @@ INSERT INTO users (username, email, password, full_name, role) VALUES
 ('user1', 'user1@docportal.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'John Doe', 'user');
 
 INSERT INTO categories (id, name, color) VALUES
-(1, 'เกียรติบัตร (Certificate)', '#ec4899'),
-(2, 'เอกสารการอบรม (Training)', '#3b82f6'),
-(3, 'คำสั่ง / ประกาศ (Announcement)', '#10b981');
+(1, 'เกียรติบัตร', '#ec4899'),
+(2, 'เอกสารการอบรม', '#3b82f6'),
+(3, 'คำสั่ง / ประกาศ', '#10b981');
 
 INSERT INTO documents (id, title, description, category_id, file_path, file_size, is_public, created_by) VALUES
 (1, 'คู่มือการใช้งานระบบ (สาธารณะ)', 'เปิดให้ทุกคนอ่านได้', 2, 'user_manual.pdf', '1.5 MB', 1, 1),

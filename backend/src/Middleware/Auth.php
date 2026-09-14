@@ -19,7 +19,12 @@ class Auth {
 
         // 3. Fallback to apache_request_headers / getallheaders loop
         if (!$authHeader) {
-            $headers = function_exists('apache_request_headers') ? apache_request_headers() : getallheaders();
+            $headers = [];
+            if (function_exists('apache_request_headers')) {
+                $headers = apache_request_headers();
+            } elseif (function_exists('getallheaders')) {
+                $headers = getallheaders();
+            }
             if ($headers) {
                 foreach ($headers as $key => $value) {
                     $lowerKey = strtolower($key);
