@@ -35,6 +35,8 @@ export default function Dashboard() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState(null);
   const searchContainerRef = useRef(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [viewMode, setViewMode] = useState(() => {
     return localStorage.getItem('documentViewMode') || 'list';
@@ -113,6 +115,16 @@ export default function Dashboard() {
     }
     return result;
   }, [documents, activeTag, searchTerm, fuse]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTag, searchTerm]);
+
+  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage);
+  const paginatedDocs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredDocs.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredDocs, currentPage]);
 
   const searchSuggestions = useMemo(() => {
     if (!fuse || searchTerm.trim() === '') return [];
@@ -308,197 +320,226 @@ export default function Dashboard() {
             <p className="text-[17px] text-[#ffffff]/50 mt-2 font-light">ไม่มีเอกสารในหมวดหมู่นี้ หรือคำค้นหาไม่ตรงกัน</p>
           </motion.div>
         ) : (
-          <AnimatePresence mode="wait">
-            {viewMode === 'list' ? (
-              <motion.div 
-                key="list-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="max-w-4xl mx-auto w-full"
-              >
-                <div className="bg-[#272729] rounded-[18px] border border-[#333333] overflow-hidden shadow-none w-full">
-                  <Table>
-                    <TableHeader className="bg-black/20 border-b border-[#333333]">
-                      <TableRow className="hover:bg-transparent border-[#333333]">
-                        <TableHead className="text-white/50 font-medium py-5 text-base md:text-lg">เอกสาร</TableHead>
-                        <TableHead className="hidden md:table-cell text-white/50 font-medium py-5 text-base md:text-lg">สถานะ</TableHead>
-                        <TableHead className="hidden md:table-cell text-white/50 font-medium py-5 text-base md:text-lg">วันที่อัปโหลด</TableHead>
-                        <TableHead className="w-16 md:w-20 text-right text-white/50 font-medium py-5"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredDocs.map((doc) => {
-                        const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
-                        const token = localStorage.getItem('token') || '';
-                        const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
-                        return (
-                          <TableRow 
-                            key={doc.id}
-                            className="border-b border-white/5 transition-colors group hover:bg-white/5 cursor-pointer"
-                            onClick={() => navigate(`/document/${doc.id}`)}
-                          >
-                            <TableCell className="py-4 md:py-5">
-                              <div className="flex items-center gap-3 md:gap-4">
-                                <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white/5 flex items-center justify-center text-white/70 shrink-0 overflow-hidden border border-white/10">
-                                  {isImage ? (
-                                    <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <FileText className="w-6 h-6 md:w-8 md:h-8" />
-                                  )}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium text-white/90 text-base md:text-lg truncate group-hover:text-[#2997ff] transition-colors">{doc.title}</span>
-                                    {doc.is_public == 1 ? (
-                                      <span className="md:hidden px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">สาธารณะ</span>
-                                    ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
-                                      <span className="md:hidden px-2 py-0.5 bg-[#0066cc]/20 text-[#2997ff] rounded text-[10px] font-medium uppercase">แชร์กับคุณ</span>
+          <>
+            <AnimatePresence mode="wait">
+              {viewMode === 'list' ? (
+                <motion.div 
+                  key="list-view"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-4xl mx-auto w-full"
+                >
+                  <div className="bg-[#272729] rounded-[18px] border border-[#333333] overflow-hidden shadow-none w-full">
+                    <Table>
+                      <TableHeader className="bg-black/20 border-b border-[#333333]">
+                        <TableRow className="hover:bg-transparent border-[#333333]">
+                          <TableHead className="text-white/50 font-medium py-5 text-base md:text-lg">เอกสาร</TableHead>
+                          <TableHead className="hidden md:table-cell text-white/50 font-medium py-5 text-base md:text-lg">สถานะ</TableHead>
+                          <TableHead className="hidden md:table-cell text-white/50 font-medium py-5 text-base md:text-lg">วันที่อัปโหลด</TableHead>
+                          <TableHead className="w-16 md:w-20 text-right text-white/50 font-medium py-5"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedDocs.map((doc) => {
+                          const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
+                          const token = localStorage.getItem('token') || '';
+                          const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
+                          return (
+                            <TableRow 
+                              key={doc.id}
+                              className="border-b border-white/5 transition-colors group hover:bg-white/5 cursor-pointer"
+                              onClick={() => navigate(`/document/${doc.id}`)}
+                            >
+                              <TableCell className="py-4 md:py-5">
+                                <div className="flex items-center gap-3 md:gap-4">
+                                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white/5 flex items-center justify-center text-white/70 shrink-0 overflow-hidden border border-white/10">
+                                    {isImage ? (
+                                      <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover" />
                                     ) : (
-                                      <span className="md:hidden px-2 py-0.5 bg-black border border-white/10 text-white/70 rounded text-[10px] font-medium uppercase">ส่วนตัว</span>
+                                      <FileText className="w-6 h-6 md:w-8 md:h-8" />
                                     )}
                                   </div>
-                                  <span className="text-xs md:text-sm text-white/50 truncate font-light mt-0.5">{doc.description || 'ไม่มีคำอธิบาย'}</span>
-                                  <span className="text-[10px] md:text-xs text-white/40 md:hidden mt-0.5">{new Date(doc.created_at).toLocaleDateString('th-TH')}</span>
+                                  <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-medium text-white/90 text-base md:text-lg truncate group-hover:text-[#2997ff] transition-colors">{doc.title}</span>
+                                      {doc.is_public == 1 ? (
+                                        <span className="md:hidden px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">สาธารณะ</span>
+                                      ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
+                                        <span className="md:hidden px-2 py-0.5 bg-[#0066cc]/20 text-[#2997ff] rounded text-[10px] font-medium uppercase">แชร์กับคุณ</span>
+                                      ) : (
+                                        <span className="md:hidden px-2 py-0.5 bg-black border border-white/10 text-white/70 rounded text-[10px] font-medium uppercase">ส่วนตัว</span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs md:text-sm text-white/50 truncate font-light mt-0.5">{doc.description || 'ไม่มีคำอธิบาย'}</span>
+                                    <span className="text-[10px] md:text-xs text-white/40 md:hidden mt-0.5">{new Date(doc.created_at).toLocaleDateString('th-TH')}</span>
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell py-5 text-white/70 text-base md:text-lg">
-                              {doc.is_public == 1 ? (
-                                <span className="px-3 py-1 bg-white/10 text-white rounded-md text-[12px] font-medium uppercase tracking-wider">
-                                  สาธารณะ
-                                </span>
-                              ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
-                                <span className="px-3 py-1 bg-[#0066cc]/20 text-[#2997ff] rounded-md text-[12px] font-medium uppercase tracking-wider">
-                                  แชร์กับคุณ
-                                </span>
-                              ) : (
-                                <span className="px-3 py-1 bg-black border border-white/10 text-white/70 rounded-md text-[12px] font-medium uppercase tracking-wider">
-                                  ส่วนตัว
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell py-5 text-white/70 text-base md:text-lg font-light">
-                              {new Date(doc.created_at).toLocaleDateString('th-TH')}
-                            </TableCell>
-                            <TableCell className="text-right py-4 md:py-5 pr-4 md:pr-6" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-9 w-9 text-white/40 hover:text-white hover:bg-white/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                                    <MoreHorizontal className="h-5 w-5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 bg-[#272729] border-[#333333] text-white rounded-xl shadow-none p-1.5">
-                                  <DropdownMenuItem 
-                                    onClick={() => setSelectedPreviewDoc(doc)}
-                                    className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
-                                  >
-                                    <Search className="w-4 h-4 mr-2.5 text-white/60" /> ดูตัวอย่าง
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    onClick={() => handleDownload(doc.id, doc.file_path)}
-                                    className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
-                                  >
-                                    <Download className="w-4 h-4 mr-2.5 text-white/60" /> ดาวน์โหลด
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div 
-                key={`grid-view-${viewMode}`}
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-                className={viewMode === 'large' ? "grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto w-full" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full"}
-              >
-                {filteredDocs.map((doc) => {
-                  const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
-                  const token = localStorage.getItem('token') || '';
-                  const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
-                  return (
-                    <motion.div
-                      key={doc.id}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      onClick={() => navigate(`/document/${doc.id}`)}
-                      className="group relative bg-[#272729] rounded-[18px] border border-[#333333] shadow-none overflow-hidden transition-all hover:border-[#ffffff]/20 flex flex-col cursor-pointer"
-                    >
-                      <div className="absolute top-3 right-3 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 text-white/70 hover:text-white hover:bg-black/60 rounded-full backdrop-blur-sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 bg-[#272729] border-[#333333] text-white rounded-xl shadow-none p-1.5">
-                            <DropdownMenuItem 
-                              onClick={() => setSelectedPreviewDoc(doc)}
-                              className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
-                            >
-                              <Search className="w-4 h-4 mr-2.5 text-white/60" /> ดูตัวอย่าง
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDownload(doc.id, doc.file_path)}
-                              className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
-                            >
-                              <Download className="w-4 h-4 mr-2.5 text-white/60" /> ดาวน์โหลด
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-
-                      <div 
-                        className={`w-full bg-black/20 flex items-center justify-center shrink-0 border-b border-[#333333] ${viewMode === 'large' ? 'h-64 md:h-72' : 'h-40'}`}
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell py-5 text-white/70 text-base md:text-lg">
+                                {doc.is_public == 1 ? (
+                                  <span className="px-3 py-1 bg-white/10 text-white rounded-md text-[12px] font-medium uppercase tracking-wider">
+                                    สาธารณะ
+                                  </span>
+                                ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
+                                  <span className="px-3 py-1 bg-[#0066cc]/20 text-[#2997ff] rounded-md text-[12px] font-medium uppercase tracking-wider">
+                                    แชร์กับคุณ
+                                  </span>
+                                ) : (
+                                  <span className="px-3 py-1 bg-black border border-white/10 text-white/70 rounded-md text-[12px] font-medium uppercase tracking-wider">
+                                    ส่วนตัว
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell py-5 text-white/70 text-base md:text-lg font-light">
+                                {new Date(doc.created_at).toLocaleDateString('th-TH')}
+                              </TableCell>
+                              <TableCell className="text-right py-4 md:py-5 pr-4 md:pr-6" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-white/40 hover:text-white hover:bg-white/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                      <MoreHorizontal className="h-5 w-5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-48 bg-[#272729] border-[#333333] text-white rounded-xl shadow-none p-1.5">
+                                    <DropdownMenuItem 
+                                      onClick={() => setSelectedPreviewDoc(doc)}
+                                      className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
+                                    >
+                                      <Search className="w-4 h-4 mr-2.5 text-white/60" /> ดูตัวอย่าง
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleDownload(doc.id, doc.file_path)}
+                                      className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
+                                    >
+                                      <Download className="w-4 h-4 mr-2.5 text-white/60" /> ดาวน์โหลด
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key={`grid-view-${viewMode}`}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                  className={viewMode === 'large' ? "grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto w-full" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full"}
+                >
+                  {paginatedDocs.map((doc) => {
+                    const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
+                    const token = localStorage.getItem('token') || '';
+                    const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
+                    return (
+                      <motion.div
+                        key={doc.id}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={() => navigate(`/document/${doc.id}`)}
+                        className="group relative bg-[#272729] rounded-[18px] border border-[#333333] shadow-none overflow-hidden transition-all hover:border-[#ffffff]/20 flex flex-col cursor-pointer"
                       >
-                        {isImage ? (
-                          <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                        ) : (
-                          <FileText className="w-12 h-12 text-white/20" />
-                        )}
-                      </div>
-                      
-                      <div className={`flex flex-col flex-1 ${viewMode === 'large' ? 'p-6 md:p-8' : 'p-5'}`}>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          {doc.is_public == 1 ? (
-                            <span className="px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">สาธารณะ</span>
-                          ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
-                            <span className="px-2 py-0.5 bg-[#0066cc]/20 text-[#2997ff] rounded text-[10px] font-medium uppercase">แชร์กับคุณ</span>
+                        <div className="absolute top-3 right-3 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/40 text-white/70 hover:text-white hover:bg-black/60 rounded-full backdrop-blur-sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 bg-[#272729] border-[#333333] text-white rounded-xl shadow-none p-1.5">
+                              <DropdownMenuItem 
+                                onClick={() => setSelectedPreviewDoc(doc)}
+                                className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
+                              >
+                                <Search className="w-4 h-4 mr-2.5 text-white/60" /> ดูตัวอย่าง
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleDownload(doc.id, doc.file_path)}
+                                className="text-sm py-2.5 px-3 rounded-lg hover:bg-white/10 cursor-pointer"
+                              >
+                                <Download className="w-4 h-4 mr-2.5 text-white/60" /> ดาวน์โหลด
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        <div 
+                          className={`w-full bg-black/20 flex items-center justify-center shrink-0 border-b border-[#333333] ${viewMode === 'large' ? 'h-64 md:h-72' : 'h-40'}`}
+                        >
+                          {isImage ? (
+                            <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                           ) : (
-                            <span className="px-2 py-0.5 bg-black border border-white/10 text-white/70 rounded text-[10px] font-medium uppercase">ส่วนตัว</span>
+                            <FileText className="w-12 h-12 text-white/20" />
                           )}
-                          <span className="px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">{doc.category_name || 'ทั่วไป'}</span>
                         </div>
                         
-                        <h4 className={`font-medium text-white/90 group-hover:text-[#2997ff] transition-colors truncate ${viewMode === 'large' ? 'text-xl md:text-2xl' : 'text-lg'}`}>
-                          {doc.title}
-                        </h4>
-                        
-                        <p className={`text-white/50 truncate font-light mt-1 flex-1 ${viewMode === 'large' ? 'text-base' : 'text-sm'}`}>
-                          {doc.description || 'ไม่มีคำอธิบาย'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#333333]">
-                          <span className="text-[11px] text-white/40">
-                            {new Date(doc.created_at).toLocaleDateString('th-TH')}
-                          </span>
+                        <div className={`flex flex-col flex-1 ${viewMode === 'large' ? 'p-6 md:p-8' : 'p-5'}`}>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            {doc.is_public == 1 ? (
+                              <span className="px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">สาธารณะ</span>
+                            ) : (doc.is_public == 0 && doc.created_by !== user?.id) ? (
+                              <span className="px-2 py-0.5 bg-[#0066cc]/20 text-[#2997ff] rounded text-[10px] font-medium uppercase">แชร์กับคุณ</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-black border border-white/10 text-white/70 rounded text-[10px] font-medium uppercase">ส่วนตัว</span>
+                            )}
+                            <span className="px-2 py-0.5 bg-white/10 text-white rounded text-[10px] font-medium uppercase">{doc.category_name || 'ทั่วไป'}</span>
+                          </div>
+                          
+                          <h4 className={`font-medium text-white/90 group-hover:text-[#2997ff] transition-colors truncate ${viewMode === 'large' ? 'text-xl md:text-2xl' : 'text-lg'}`}>
+                            {doc.title}
+                          </h4>
+                          
+                          <p className={`text-white/50 truncate font-light mt-1 flex-1 ${viewMode === 'large' ? 'text-base' : 'text-sm'}`}>
+                            {doc.description || 'ไม่มีคำอธิบาย'}
+                          </p>
+                          
+                          <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#333333]">
+                            <span className="text-[11px] text-white/40">
+                              {new Date(doc.created_at).toLocaleDateString('th-TH')}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {!isLoading && filteredDocs.length > 0 && (
+                <div className="flex items-center justify-between mt-8 p-5 rounded-[18px] border border-[#333333] bg-[#272729] text-sm md:text-base text-white/50 w-full max-w-4xl mx-auto">
+                  <div>แสดง {paginatedDocs.length} จาก {filteredDocs.length} รายการ</div>
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-[#333333] bg-transparent text-white/70 hover:bg-white/10 hover:text-white" 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      ก่อนหน้า
+                    </Button>
+                    <span className="text-white">หน้า {currentPage} จาก {totalPages}</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-[#333333] bg-transparent text-white/70 hover:bg-white/10 hover:text-white" 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      ถัดไป
+                    </Button>
+                  </div>
+                </div>
               )}
-            </AnimatePresence>
+            </>
         )}
       </main>
 

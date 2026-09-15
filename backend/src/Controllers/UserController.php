@@ -99,6 +99,73 @@ class UserController {
         }
     }
 
+    public function update($id) {
+        $user = $GLOBALS['user'] ?? null;
+        if (!$user || $user->role !== 'admin') {
+            header('HTTP/1.1 403 Forbidden');
+            echo json_encode(['status' => 'error', 'message' => 'Admin access required']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
+            return;
+        }
+
+        $username = $input['username'] ?? '';
+        $email = $input['email'] ?? '';
+        $fullName = $input['full_name'] ?? '';
+        $role = $input['role'] ?? 'user';
+        $password = $input['password'] ?? '';
+
+        $pdo = Database::getConnection();
+        if (!$pdo) {
+            header('HTTP/1.1 500 Internal Server Error');
+            echo json_encode(['status' => 'error', 'message' => 'Database connection failed']);
+            return;
+        }
+
+        try {
+            $stmt = $pdo->prepare("SELECT id, username, email FROM users WHERE (username = ? OR email = ?) AND id != ?");
+            $stmt->execute([$username, $email, $id]);
+            $existing = $stmt->fetchAll();
+
+            $errors = [];
+            foreach ($existing as $row) {
+                if (strtolower($row['username']) === strtolower($username)) {
+                    $errors['username'] = 'ชื่อผู้ใช้งานนี้มีในระบบแล้ว';
+                }
+                if (strtolower($row['email']) === strtolower($email)) {
+                    $errors['email'] = 'อีเมลนี้มีผู้ใช้งานแล้ว';
+                }
+            }
+
+            if (!empty($errors)) {
+                echo json_encode(['status' => 'error', 'errors' => $errors]);
+                return;
+            }
+
+            if (!empty($password)) {
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("UPDATE users SET username=?, email=?, full_name=?, role=?, password=? WHERE id=?");
+                $stmt->execute([$username, $email, $fullName, $role, $hashedPassword, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET username=?, email=?, full_name=?, role=? WHERE id=?");
+                $stmt->execute([$username, $email, $fullName, $role, $id]);
+            }
+
+            $stmt = $pdo->prepare("SELECT id, username, full_name, email, role, profile_image, created_at FROM users WHERE id = ?");
+            $stmt->execute([$id]);
+            $updatedUser = $stmt->fetch();
+
+            echo json_encode(['status' => 'success', 'data' => $updatedUser]);
+        } catch (Exception $e) {
+            header('HTTP/1.1 500 Internal Server Error');
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    }
+
     public function delete($id) {
         $user = $GLOBALS['user'] ?? null;
         if (!$user || $user->role !== 'admin') {

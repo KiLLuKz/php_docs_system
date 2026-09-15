@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import usePendingDeletes from '../hooks/usePendingDeletes';
 import { UserPlus, Search, MoreHorizontal, Settings2, ShieldCheck, Edit, Trash2, X, UserCircle, Copy, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
@@ -8,6 +9,7 @@ import axiosClient from '../api/axiosClient';
 import { useAlert } from '../context/AlertContext';
 import { useAuth } from '../context/AuthContext';
 import { Skeleton } from '../components/ui/skeleton';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 import {
   Table,
@@ -31,6 +33,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from '../components/ui/sheet';
 
 export default function AdminUsers() { 
@@ -44,11 +47,19 @@ export default function AdminUsers() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [roleFilter, setRoleFilter] = useState('all'); 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({ id: null, username: '', full_name: '', email: '', role: 'user', password: '' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   const searchContainerRef = useRef(null);
 
   // Form errors
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter]);
 
   useEffect(() => {
     fetchUsers();
@@ -90,6 +101,8 @@ export default function AdminUsers() {
 
   const { showAlert } = useAlert();
 
+  const { registerDelete, unregisterDelete } = usePendingDeletes();
+
   const executeDelete = (idsToDelete, itemsToDelete) => {
     const count = idsToDelete.length;
 
@@ -98,30 +111,41 @@ export default function AdminUsers() {
     setSelectedUsers(prev => prev.filter(id => !idsToDelete.includes(id)));
 
     let undone = false;
+    let executed = false;
+    const deleteId = Symbol('delete');
 
-    const timeoutId = setTimeout(async () => {
-      if (!undone) {
-        try {
-          if (idsToDelete.length === 1) {
-            const res = await axiosClient.delete(`/users/${idsToDelete[0]}`);
-            if (res.data.status !== 'success') throw new Error(res.data.message || 'Failed to delete');
-          } else {
-            const res = await axiosClient.post('/users/bulk-delete', { ids: idsToDelete });
-            if (res.data.status !== 'success') throw new Error(res.data.message || 'Failed to delete');
-          }
-        } catch (error) {
-          setUsers(prev => {
-            const newUsers = [...prev, ...itemsToDelete];
-            return newUsers.sort((a, b) => {
-              if (a.role !== b.role) {
-                return a.role === 'admin' ? -1 : 1;
-              }
-              return a.full_name.localeCompare(b.full_name, 'th');
-            });
-          });
-          setSelectedUsers(prev => [...prev, ...idsToDelete]);
-          toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+    const performDelete = async () => {
+      if (undone || executed) return;
+      executed = true;
+      try {
+        if (idsToDelete.length === 1) {
+          const res = await axiosClient.delete(`/users/${idsToDelete[0]}`);
+          if (res.data.status !== 'success') throw new Error(res.data.message || 'Failed to delete');
+        } else {
+          const res = await axiosClient.post('/users/bulk-delete', { ids: idsToDelete });
+          if (res.data.status !== 'success') throw new Error(res.data.message || 'Failed to delete');
         }
+      } catch (error) {
+        setUsers(prev => {
+          const newUsers = [...prev, ...itemsToDelete];
+          return newUsers.sort((a, b) => {
+            if (a.role !== b.role) {
+              return a.role === 'admin' ? -1 : 1;
+            }
+            return a.full_name.localeCompare(b.full_name, 'th');
+          });
+        });
+        setSelectedUsers(prev => [...prev, ...idsToDelete]);
+        toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+      }
+    };
+
+    registerDelete(deleteId, performDelete);
+
+    const timeoutId = setTimeout(() => {
+      if (!undone) {
+        unregisterDelete(deleteId);
+        performDelete();
       }
     }, 5000);
 
@@ -132,6 +156,7 @@ export default function AdminUsers() {
         onClick: () => {
           undone = true;
           clearTimeout(timeoutId);
+          unregisterDelete(deleteId);
           setUsers(prev => {
             const newUsers = [...prev, ...itemsToDelete];
             return newUsers.sort((a, b) => {
@@ -184,13 +209,44 @@ export default function AdminUsers() {
   };
 
   const handleEdit = (user) => {
-    toast.info('ฟังก์ชันแก้ไขกำลังอยู่ระหว่างพัฒนาครับ');
+    setEditFormData({ id: user.id, username: user.username, full_name: user.full_name, email: user.email, role: user.role, password: '' });
+    setErrors({});
+    setIsEditModalOpen(true);
   };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (submitLoadingRef.current) return;
+    submitLoadingRef.current = true;
+    setSubmitLoading(true);
+    setErrors({});
+
+    try {
+      const res = await axiosClient.put(`/users/${editFormData.id}`, editFormData);
+      if (res.data.status === 'error' && res.data.errors) {
+        setErrors(res.data.errors);
+        toast.error('ข้อมูลบางอย่างไม่ถูกต้อง');
+      } else if (res.data.status === 'success') {
+        setUsers(users.map(u => u.id === editFormData.id ? res.data.data : u));
+        setIsEditModalOpen(false);
+        toast.success('แก้ไขข้อมูลสำเร็จ');
+      }
+    } catch (err) {
+      toast.error('เกิดข้อผิดพลาดในการแก้ไขผู้ใช้งาน');
+    } finally {
+      submitLoadingRef.current = false;
+      setSubmitLoading(false);
+    }
+  };
+
+  const submitLoadingRef = useRef(false);
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    setErrors({});
+    if (submitLoadingRef.current) return;
+    submitLoadingRef.current = true;
     setSubmitLoading(true);
+    setErrors({});
 
     try {
       const res = await axiosClient.post('/users', formData);
@@ -206,6 +262,7 @@ export default function AdminUsers() {
     } catch (err) {
       toast.error('เกิดข้อผิดพลาดในการสร้างผู้ใช้งาน');
     } finally {
+      submitLoadingRef.current = false;
       setSubmitLoading(false);
     }
   };
@@ -231,6 +288,16 @@ export default function AdminUsers() {
   const recommendResults = searchTerm ? searchResults.slice(0, 5) : [];
 
   const selectableUsers = filteredUsers.filter(u => String(u.id) !== String(user?.id));
+  
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage) || 1;
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUsers.includes(u.id));
 
   const toggleSelectAll = () => {
@@ -448,8 +515,8 @@ export default function AdminUsers() {
                   </>
                 ) : (
                   <AnimatePresence mode="popLayout">
-                    {filteredUsers.length > 0 ? (
-                      filteredUsers.map((u) => (
+                    {paginatedUsers.length > 0 ? (
+                      paginatedUsers.map((u) => (
                         <TableRow 
                           key={u.id}
                           className={`border-b border-white/5 transition-colors group ${selectedUsers.includes(u.id) ? 'bg-white/10 hover:bg-white/15' : 'hover:bg-white/5'}`}
@@ -467,7 +534,7 @@ export default function AdminUsers() {
                             <div className="flex items-center gap-3 md:gap-4">
                               <div className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-white/10 flex items-center justify-center text-white/70 shrink-0 overflow-hidden">
                                 {u.profile_image ? (
-                                  <img src={`/api/uploads/profiles/${u.profile_image}`} alt={u.full_name} className="w-full h-full object-cover" />
+                                  <ImageWithFallback src={`/api/uploads/profiles/${u.profile_image}`} alt={u.full_name} className="object-cover" />
                                 ) : (
                                   <span className="uppercase text-sm font-semibold">{u.username.substring(0, 2)}</span>
                                 )}
@@ -546,12 +613,25 @@ export default function AdminUsers() {
             
             {/* Pagination Footer */}
             <div className="flex items-center justify-between p-5 border-t border-white/5 bg-black/20 text-sm md:text-base text-white/50">
-              <div>แสดง {filteredUsers.length} จาก {users.length} รายการ</div>
+              <div>แสดง {paginatedUsers.length} จาก {filteredUsers.length} รายการ</div>
               <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-white/10 bg-transparent text-white/70 hover:bg-white/5" disabled>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-white/10 bg-transparent text-white/70 hover:bg-white/5" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
                   ก่อนหน้า
                 </Button>
-                <Button variant="outline" size="sm" className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-white/10 bg-transparent text-white/70 hover:bg-white/5" disabled>
+                <span className="text-white">หน้า {currentPage} จาก {totalPages}</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-white/10 bg-transparent text-white/70 hover:bg-white/5" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
                   ถัดไป
                 </Button>
               </div>
@@ -698,6 +778,117 @@ export default function AdminUsers() {
             </>
           )}
         </AnimatePresence>
+
+        {/* Edit User Modal */}
+        <Sheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto bg-[#1c1c1e] border-l border-white/10 text-white p-6 md:p-10">
+            <SheetHeader className="mb-8 mt-2 text-left">
+              <SheetTitle className="font-semibold text-2xl md:text-3xl tracking-tight text-white">แก้ไขผู้ใช้งาน</SheetTitle>
+              <SheetDescription className="hidden">แก้ไขข้อมูลส่วนตัวและสิทธิ์ของผู้ใช้งาน</SheetDescription>
+            </SheetHeader>
+            
+            <form onSubmit={handleEditSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm md:text-base text-white/80 mb-2 font-medium">ชื่อ-นามสกุล</label>
+                <Input 
+                  type="text" 
+                  required
+                  className="bg-black/40 border-white/10 text-white focus-visible:ring-0 focus-visible:border-white/20 rounded-xl h-12 md:h-14 text-base md:text-lg" 
+                  value={editFormData.full_name}
+                  onChange={e => setEditFormData({...editFormData, full_name: e.target.value})}
+                />
+              </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm md:text-base text-white/80 mb-2 font-medium">ชื่อผู้ใช้ (Username)</label>
+                      <Input 
+                        type="text" 
+                        required
+                        className={`bg-black/40 border-white/10 text-white focus-visible:ring-0 rounded-xl h-12 md:h-14 text-base md:text-lg ${
+                          errors.username ? 'border-red-500 focus-visible:border-red-500' : 'focus-visible:border-white/20'
+                        }`} 
+                        value={editFormData.username}
+                        onChange={e => {
+                          setEditFormData({...editFormData, username: e.target.value});
+                          if (errors.username) setErrors({...errors, username: null});
+                        }}
+                      />
+                      {errors.username && (
+                        <p className="text-red-400 text-xs md:text-sm mt-2 ml-1">{errors.username}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm md:text-base text-white/80 mb-2 font-medium">รหัสผ่าน (เว้นว่างได้)</label>
+                      <Input 
+                        type="password" 
+                        className="bg-black/40 border-white/10 text-white focus-visible:ring-0 focus-visible:border-white/20 rounded-xl h-12 md:h-14 text-base md:text-lg" 
+                        value={editFormData.password}
+                        onChange={e => setEditFormData({...editFormData, password: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm md:text-base text-white/80 mb-2 font-medium">อีเมล</label>
+                    <Input 
+                      type="email" 
+                      required
+                      className={`bg-black/40 border-white/10 text-white focus-visible:ring-0 rounded-xl h-12 md:h-14 text-base md:text-lg ${
+                        errors.email ? 'border-red-500 focus-visible:border-red-500' : 'focus-visible:border-white/20'
+                      }`} 
+                      value={editFormData.email}
+                      onChange={e => {
+                        setEditFormData({...editFormData, email: e.target.value});
+                        if (errors.email) setErrors({...errors, email: null});
+                      }}
+                    />
+                    {errors.email && (
+                      <p className="text-red-400 text-xs md:text-sm mt-2 ml-1">{errors.email}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm md:text-base text-white/80 mb-2 font-medium">สิทธิ์การใช้งาน</label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          className="w-full justify-between bg-black/40 hover:bg-black/60 border-white/10 hover:border-white/20 text-white focus-visible:ring-0 focus-visible:border-white/20 rounded-xl h-12 md:h-14 text-base md:text-lg px-4 font-normal"
+                        >
+                          {editFormData.role === 'admin' ? 'Admin (ผู้ดูแลระบบ)' : 'User (ผู้ใช้ทั่วไป)'}
+                          <ChevronDown className="w-5 h-5 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent style={{ zIndex: 9999 }} className="w-[var(--radix-dropdown-menu-trigger-width)] bg-[#1c1c1e] border-white/10 text-white rounded-xl shadow-2xl p-1.5">
+                        <DropdownMenuItem 
+                          onClick={() => setEditFormData({...editFormData, role: 'user'})}
+                          className="text-base md:text-lg py-3 px-4 rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                        >
+                          User (ผู้ใช้ทั่วไป)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => setEditFormData({...editFormData, role: 'admin'})}
+                          className="text-base md:text-lg py-3 px-4 rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                        >
+                          Admin (ผู้ดูแลระบบ)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <Button type="submit" disabled={submitLoading} className="w-full rounded-xl bg-[#0066cc] hover:bg-[#0055b3] text-white font-medium h-12 md:h-14 text-base md:text-lg mt-8">
+                    {submitLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : (
+                      <>
+                        <Edit className="w-5 h-5 mr-2" />
+                        บันทึกการแก้ไข
+                      </>
+                    )}
+                  </Button>
+                </form>
+          </SheetContent>
+        </Sheet>
       </main>
     </div>
   );

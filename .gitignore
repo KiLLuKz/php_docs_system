@@ -16,7 +16,6 @@ backend/.env
 backend/uploads/*
 !backend/uploads/.gitkeep
 !backend/uploads/profiles/.gitkeep
-!backend/uploads/documents/.gitkeep
 backend/error_log
 
 # OS / Editor Files

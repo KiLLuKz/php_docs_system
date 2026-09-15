@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import usePendingDeletes from '../hooks/usePendingDeletes';
 import axiosClient from '../api/axiosClient';
 import { FileText, Trash2, Search, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +13,7 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   flexRender,
 } from '@tanstack/react-table';
 import { Button } from '../components/ui/button';
@@ -44,6 +46,8 @@ export default function AdminDocuments() {
     fetchData();
   }, [user]);
 
+  const { registerDelete, unregisterDelete } = usePendingDeletes();
+
   const executeDelete = (idsToDelete, itemsToDelete) => {
     const count = idsToDelete.length;
     
@@ -56,26 +60,37 @@ export default function AdminDocuments() {
     });
 
     let undone = false;
+    let executed = false;
+    const deleteId = Symbol('delete');
 
-    const timeoutId = setTimeout(async () => {
-      if (!undone) {
-        try {
-          const res = await axiosClient.delete('/admin/documents/bulk', { data: { ids: idsToDelete } });
-          if (res.data.status !== 'success') {
-             throw new Error('Failed to delete');
-          }
-        } catch (error) {
-          setDocuments(prev => {
-            const newDocs = [...prev, ...itemsToDelete];
-            return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          });
-          setRowSelection(prev => {
-            const next = { ...prev };
-            idsToDelete.forEach(id => { next[id] = true; });
-            return next;
-          });
-          toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+    const performDelete = async () => {
+      if (undone || executed) return;
+      executed = true;
+      try {
+        const res = await axiosClient.delete('/admin/documents/bulk', { data: { ids: idsToDelete } });
+        if (res.data.status !== 'success') {
+           throw new Error('Failed to delete');
         }
+      } catch (error) {
+        setDocuments(prev => {
+          const newDocs = [...prev, ...itemsToDelete];
+          return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        });
+        setRowSelection(prev => {
+          const next = { ...prev };
+          idsToDelete.forEach(id => { next[id] = true; });
+          return next;
+        });
+        toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+      }
+    };
+
+    registerDelete(deleteId, performDelete);
+
+    const timeoutId = setTimeout(() => {
+      if (!undone) {
+        unregisterDelete(deleteId);
+        performDelete();
       }
     }, 5000);
 
@@ -86,6 +101,7 @@ export default function AdminDocuments() {
         onClick: () => {
           undone = true;
           clearTimeout(timeoutId);
+          unregisterDelete(deleteId);
           setDocuments(prev => {
             const newDocs = [...prev, ...itemsToDelete];
             return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -259,6 +275,12 @@ export default function AdminDocuments() {
     getRowId: row => row.id,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
   });
 
   const selectedCount = Object.keys(rowSelection).length;
@@ -373,6 +395,64 @@ export default function AdminDocuments() {
                 )}
               </tbody>
             </table>
+          </div>
+          
+          {/* Pagination Footer */}
+          <div className="flex items-center justify-between p-4 border-t border-[#333333] bg-[#2a2a2c]/20">
+            <span className="text-sm text-white/50">
+              หน้า {table.getState().pagination.pageIndex + 1} จาก {table.getPageCount() || 1}
+            </span>
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg border border-[#333333] text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                &lt;
+              </button>
+              {(() => {
+                const pageCount = table.getPageCount();
+                const pageIndex = table.getState().pagination.pageIndex;
+                if (pageCount === 0) return null;
+                
+                const getVisiblePages = () => {
+                  if (pageCount <= 5) return Array.from({ length: pageCount }, (_, i) => i);
+                  if (pageIndex <= 2) return [0, 1, 2, 3, 'ellipsis', pageCount - 1];
+                  if (pageIndex >= pageCount - 3) return [0, 'ellipsis', pageCount - 4, pageCount - 3, pageCount - 2, pageCount - 1];
+                  return [0, 'ellipsis', pageIndex - 1, pageIndex, pageIndex + 1, 'ellipsis', pageCount - 1];
+                };
+
+                return getVisiblePages().map((p, idx) => {
+                  if (p === 'ellipsis') {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-white/50">
+                        ...
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => table.setPageIndex(p)}
+                      className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg border transition-colors ${
+                        pageIndex === p
+                          ? 'border-white text-white bg-white/10'
+                          : 'border-[#333333] text-white/50 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {p + 1}
+                    </button>
+                  );
+                });
+              })()}
+              <button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg border border-[#333333] text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                &gt;
+              </button>
+            </div>
           </div>
         </div>
       </main>

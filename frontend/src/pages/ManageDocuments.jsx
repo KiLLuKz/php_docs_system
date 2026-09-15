@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import usePendingDeletes from '../hooks/usePendingDeletes';
 import axiosClient from '../api/axiosClient';
-import { FileText, Upload, Trash2, X, Share2, Users, Search, RefreshCw, ChevronRight, LayoutGrid, Grid3x3, List } from 'lucide-react';
+import { FileText, Upload, Trash2, X, Share2, Users, Search, RefreshCw, ChevronRight, LayoutGrid, Grid3x3, List, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
 import { Skeleton } from '../components/ui/skeleton';
@@ -9,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import { toast } from 'sonner';
 import DocumentPreview from '../components/DocumentPreview';
+import ImageWithFallback from '../components/ImageWithFallback';
 import { Avatar, AvatarFallback, AvatarImage, AvatarGroup, AvatarGroupCount } from '../components/ui/avatar';
 
 import {
@@ -44,6 +46,9 @@ export default function ManageDocuments() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const searchContainerRef = useRef(null);
   
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
   const [viewMode, setViewMode] = useState(() => {
     return localStorage.getItem('documentViewMode') || 'list';
   });
@@ -63,6 +68,7 @@ export default function ManageDocuments() {
   const [assignedUserIds, setAssignedUserIds] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [isSavingAccess, setIsSavingAccess] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [uploadData, setUploadData] = useState({
     title: '',
@@ -157,6 +163,19 @@ export default function ManageDocuments() {
 
   const [selectedDocs, setSelectedDocs] = useState([]);
 
+  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage) || 1;
+  const paginatedDocs = filteredDocs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeTag]);
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   const isAllSelected = filteredDocs.length > 0 && filteredDocs.every(d => selectedDocs.includes(d.id));
 
   const toggleSelectAll = () => {
@@ -176,6 +195,8 @@ export default function ManageDocuments() {
     }
   };
 
+  const { registerDelete, unregisterDelete } = usePendingDeletes();
+
   const executeDelete = (idsToDelete, itemsToDelete) => {
     const count = idsToDelete.length;
     
@@ -184,26 +205,37 @@ export default function ManageDocuments() {
     setSelectedDocs(prev => prev.filter(id => !idsToDelete.includes(id)));
 
     let undone = false;
+    let executed = false;
+    const deleteId = Symbol('delete');
 
-    const timeoutId = setTimeout(async () => {
-      if (!undone) {
-        try {
-          if (idsToDelete.length === 1) {
-            await axiosClient.delete(`/documents/${idsToDelete[0]}`);
-          } else {
-            const res = await axiosClient.post('/documents/bulk-delete', { ids: idsToDelete });
-            if (res.data.status !== 'success') {
-               throw new Error('Failed to delete');
-            }
+    const performDelete = async () => {
+      if (undone || executed) return;
+      executed = true;
+      try {
+        if (idsToDelete.length === 1) {
+          await axiosClient.delete(`/documents/${idsToDelete[0]}`);
+        } else {
+          const res = await axiosClient.post('/documents/bulk-delete', { ids: idsToDelete });
+          if (res.data.status !== 'success') {
+             throw new Error('Failed to delete');
           }
-        } catch (error) {
-          setDocuments(prev => {
-            const newDocs = [...prev, ...itemsToDelete];
-            return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          });
-          setSelectedDocs(prev => [...prev, ...idsToDelete]);
-          toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
         }
+      } catch (error) {
+        setDocuments(prev => {
+          const newDocs = [...prev, ...itemsToDelete];
+          return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        });
+        setSelectedDocs(prev => [...prev, ...idsToDelete]);
+        toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+      }
+    };
+
+    registerDelete(deleteId, performDelete);
+
+    const timeoutId = setTimeout(() => {
+      if (!undone) {
+        unregisterDelete(deleteId);
+        performDelete();
       }
     }, 5000);
 
@@ -214,6 +246,7 @@ export default function ManageDocuments() {
         onClick: () => {
           undone = true;
           clearTimeout(timeoutId);
+          unregisterDelete(deleteId);
           setDocuments(prev => {
             const newDocs = [...prev, ...itemsToDelete];
             return newDocs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -255,13 +288,19 @@ export default function ManageDocuments() {
     });
   };
 
+  const isUploadingRef = useRef(false);
+
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
+    if (isUploadingRef.current) return;
+    
     if (!uploadData.file) {
       toast.warning('กรุณาเลือกไฟล์ที่จะอัปโหลด');
       return;
     }
 
+    isUploadingRef.current = true;
+    setIsUploading(true);
     const formData = new FormData();
     formData.append('title', uploadData.title);
     formData.append('description', uploadData.description);
@@ -280,6 +319,9 @@ export default function ManageDocuments() {
       toast.success('อัปโหลดเอกสารเรียบร้อยแล้ว');
     } catch (error) {
       toast.error('ไม่สามารถอัปโหลดเอกสารได้');
+    } finally {
+      isUploadingRef.current = false;
+      setIsUploading(false);
     }
   };
 
@@ -566,8 +608,8 @@ export default function ManageDocuments() {
                   </>
                 ) : (
                   <>
-                    {filteredDocs.length > 0 ? (
-                      filteredDocs.map((doc) => {
+                    {paginatedDocs.length > 0 ? (
+                      paginatedDocs.map((doc) => {
                         const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
                         const token = localStorage.getItem('token') || '';
                         const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
@@ -588,7 +630,7 @@ export default function ManageDocuments() {
                             <div className="flex items-center gap-3 md:gap-4">
                               <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white/5 flex items-center justify-center text-white/70 shrink-0 overflow-hidden border border-white/10">
                                 {isImage ? (
-                                  <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                  <ImageWithFallback src={previewUrl} alt={doc.title} className="object-cover" />
                                 ) : (
                                   <FileText className="w-6 h-6 md:w-8 md:h-8" />
                                 )}
@@ -707,9 +749,9 @@ export default function ManageDocuments() {
                     </div>
                   ))}
                 </>
-              ) : filteredDocs.length > 0 ? (
+              ) : paginatedDocs.length > 0 ? (
                 <AnimatePresence mode="popLayout">
-                  {filteredDocs.map((doc) => {
+                  {paginatedDocs.map((doc) => {
                     const isImage = doc.file_path && /\.(jpeg|jpg|png|gif|webp)$/i.test(doc.file_path);
                     const token = localStorage.getItem('token') || '';
                     const previewUrl = `${axiosClient.defaults.baseURL}/documents/preview/${doc.id}?token=${token}`;
@@ -772,7 +814,7 @@ export default function ManageDocuments() {
                           onClick={() => setSelectedPreviewDoc(doc)}
                         >
                           {isImage ? (
-                            <img src={previewUrl} alt={doc.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                            <ImageWithFallback src={previewUrl} alt={doc.title} className="object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                           ) : (
                             <FileText className="w-12 h-12 text-white/20" />
                           )}
@@ -833,6 +875,34 @@ export default function ManageDocuments() {
           )}
         </AnimatePresence>
       </motion.div>
+
+        {/* Pagination Footer */}
+        {!loading && filteredDocs.length > 0 && (
+          <div className="flex items-center justify-between mt-8 p-5 rounded-[18px] border border-[#333333] bg-[#272729] text-sm md:text-base text-white/50">
+            <div>แสดง {paginatedDocs.length} จาก {filteredDocs.length} รายการ</div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-[#333333] bg-transparent text-white/70 hover:bg-white/10 hover:text-white" 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                ก่อนหน้า
+              </Button>
+              <span className="text-white">หน้า {currentPage} จาก {totalPages}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-9 md:h-10 px-3 md:px-4 text-sm md:text-base rounded-lg border-[#333333] bg-transparent text-white/70 hover:bg-white/10 hover:text-white" 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                ถัดไป
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Upload Modal */}
         <AnimatePresence>
@@ -938,9 +1008,10 @@ export default function ManageDocuments() {
                     </div>
                   </div>
 
-                  <button type="submit" className="w-full bg-[#0066cc] hover:bg-[#0071e3] text-white rounded-full text-[17px] font-medium h-[44px] mt-8 flex items-center justify-center transition-colors">
-                    ยืนยันการอัปโหลด
-                  </button>
+                  <Button type="submit" disabled={isUploading} className="w-full bg-[#0066cc] hover:bg-[#0071e3] text-white rounded-full text-[17px] font-medium h-[44px] mt-8 flex items-center justify-center transition-colors">
+                    {isUploading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : null}
+                    {isUploading ? 'กำลังอัปโหลด...' : 'ยืนยันการอัปโหลด'}
+                  </Button>
                 </form>
               </motion.div>
             </div>

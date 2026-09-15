@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useDocumentTitle from '../hooks/useDocumentTitle';
+import usePendingDeletes from '../hooks/usePendingDeletes';
 import axiosClient from '../api/axiosClient';
 import { Folder, Trash2, Search, Edit2, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -57,6 +58,8 @@ export default function AdminCategories() {
     fetchData();
   }, [user]);
 
+  const { registerDelete, unregisterDelete } = usePendingDeletes();
+
   const executeDelete = (idsToDelete, itemsToDelete) => {
     const count = idsToDelete.length;
     
@@ -69,26 +72,37 @@ export default function AdminCategories() {
     });
 
     let undone = false;
+    let executed = false;
+    const deleteId = Symbol('delete');
 
-    const timeoutId = setTimeout(async () => {
-      if (!undone) {
-        try {
-          const res = await axiosClient.delete('/admin/categories/bulk', { data: { ids: idsToDelete } });
-          if (res.data.status !== 'success') {
-             throw new Error('Failed to delete');
-          }
-        } catch (error) {
-          setCategories(prev => {
-            const newCats = [...prev, ...itemsToDelete];
-            return newCats.sort((a, b) => a.id - b.id);
-          });
-          setRowSelection(prev => {
-            const next = { ...prev };
-            idsToDelete.forEach(id => { next[id] = true; });
-            return next;
-          });
-          toast.error(error.response?.data?.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
+    const performDelete = async () => {
+      if (undone || executed) return;
+      executed = true;
+      try {
+        const res = await axiosClient.delete('/admin/categories/bulk', { data: { ids: idsToDelete } });
+        if (res.data.status !== 'success') {
+           throw new Error('Failed to delete');
         }
+      } catch (error) {
+        setCategories(prev => {
+          const newCats = [...prev, ...itemsToDelete];
+          return newCats.sort((a, b) => a.id - b.id);
+        });
+        setRowSelection(prev => {
+          const next = { ...prev };
+          idsToDelete.forEach(id => { next[id] = true; });
+          return next;
+        });
+        toast.error(error.response?.data?.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
+      }
+    };
+
+    registerDelete(deleteId, performDelete);
+
+    const timeoutId = setTimeout(() => {
+      if (!undone) {
+        unregisterDelete(deleteId);
+        performDelete();
       }
     }, 5000);
 
@@ -99,6 +113,7 @@ export default function AdminCategories() {
         onClick: () => {
           undone = true;
           clearTimeout(timeoutId);
+          unregisterDelete(deleteId);
           setCategories(prev => {
             const newCats = [...prev, ...itemsToDelete];
             return newCats.sort((a, b) => a.id - b.id);

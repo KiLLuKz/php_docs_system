@@ -68,6 +68,7 @@ $router->mount('/api', function() use ($router) {
 
     $router->get('/users', 'App\\Controllers\\UserController@index');
     $router->post('/users', 'App\\Controllers\\UserController@store');
+    $router->put('/users/(\d+)', 'App\\Controllers\\UserController@update');
     $router->delete('/users/(\d+)', 'App\\Controllers\\UserController@delete');
     $router->post('/users/bulk-delete', 'App\\Controllers\\UserController@bulkDelete');
 
